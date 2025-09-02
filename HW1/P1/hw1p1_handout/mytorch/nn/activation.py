@@ -40,7 +40,7 @@ class Sigmoid:
         self.A  = 1/(1+np.exp(-Z))
         return self.A
     def backward(self, dLdA):
-        dAdz = dLdA * (self.A - self.A * self.A)
+        dAdz = (self.A - self.A * self.A)
         dLdZ = dLdA * dAdz
         return dLdZ
 
@@ -118,9 +118,12 @@ class Swish:
     def forward(self, Z):
         self.Z = Z
         self.A = Z * 1/(1+np.exp(-Z*self.beta))
+        return self.A
     def backward(self, dLdA):
         dAdZ = 1/(1+np.exp(-self.Z*self.beta)) + self.beta*self.Z*(1+np.exp(-self.Z*self.beta))*(1 - 1/(1+np.exp(-self.Z*self.beta)))
+        dAdZ = 1/(1+np.exp(-self.Z*self.beta)) + self.beta*self.Z*1/(1+np.exp(-self.Z*self.beta))*(1 - 1/(1+np.exp(-self.Z*self.beta)))
         dLdZ = dLdA * dAdZ
+        self.dLdbeta = np.sum(dLdA * self.Z *self.Z * 1/(1 + np.exp(-self.beta*self.Z)) * (1 - 1/(1+np.exp(-self.beta * self.Z))))
         return dLdZ
 
 class Softmax:
@@ -166,13 +169,13 @@ class Softmax:
             for m in range(C):
                 for n in range(C):
                     if m == n:
-                        J[m, n] = a[m]*(1 - a[n])
+                        J[m, n] = a[m]*(1 - a[m])
                     else:
-                        J[m, n] = a[m]*a[n]  # TODO
+                        J[m, n] = -a[m]*a[n]  # TODO
 
 
             # Calculate the derivative of the loss with respect to the i-th input, please read the writeup for it.
             # Hint: How can we use (1×C) and (C×C) to get (1×C) and stack up vertically to give (N×C) derivative matrix?
             dLdZ[i, :] = np.dot(dLdA[i, :], J)  # TODO
-
+            dLdZ[i, :] = dLdA[i, :]@J
         return dLdZ # TODO - What should be the return value?
