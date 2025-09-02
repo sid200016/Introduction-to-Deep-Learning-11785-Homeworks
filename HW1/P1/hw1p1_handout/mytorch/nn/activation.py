@@ -102,9 +102,10 @@ class GELU:
         return dLdZ
 
 class Swish:
+    ##Need to fill out dLdbeta calculations
     """
     Swish activation function.
-
+    
     TODO:
     On same lines as above, create your own Swish which is a torch.nn.SiLU with a learnable parameter (beta)!
     Define 'forward' function.
@@ -113,6 +114,7 @@ class Swish:
     """
     def __init__(self, B = 1.0):
         self.beta = B
+        self.dLdbeta = None
     def forward(self, Z):
         self.Z = Z
         self.A = Z * 1/(1+np.exp(-Z*self.beta))
