@@ -13,12 +13,14 @@ class MSELoss:
         """
         self.A = A
         self.Y = Y
-        self.N = None  # TODO
-        self.C = None  # TODO
-        se = None  # TODO
-        sse = None  # TODO
-        mse = None  # TODO
-        raise NotImplemented  # TODO - What should be the return value?
+        self.N = A.shape[0]  # TODO
+        self.C = A.shape[1] # TODO
+        se = (A -Y) * (A - Y)  # TODO
+        t = np.ones((self.N, 1))
+        c = np.ones((self.C, 1))
+        sse = t.T @ se @ c  # TODO
+        mse = sse/(self.N*self.C) # TODO
+        return mse # TODO - What should be the return value?
 
     def backward(self):
         """
@@ -27,8 +29,8 @@ class MSELoss:
 
         Read the writeup (Hint: MSE Loss Section) for implementation details for below code snippet.
         """
-        dLdA = None
-        raise NotImplemented  # TODO - What should be the return value?
+        dLdA = (self.A - self.Y)/ (self.N * self.C)
+        return dLdA  # TODO - What should be the return value?
 
 
 class CrossEntropyLoss:
@@ -45,19 +47,19 @@ class CrossEntropyLoss:
         """
         self.A = A
         self.Y = Y
-        self.N = None  # TODO
-        self.C = None  # TODO
+        self.N = self.A.shape[0]  # TODO
+        self.C = self.A.shape[1]  # TODO
 
-        Ones_C = None  # TODO
-        Ones_N = None  # TODO
+        Ones_C = np.ones((self.C, 1))  # TODO
+        Ones_N = np.ones((self.N, 1)) # TODO
+        A_shifted = self.A - np.max(self.A, axis = 1, keepdims=True)
+        self.softmax = np.exp(A_shifted)/np.sum(np.exp(A_shifted), axis=1, keepdims=True)   # TODO - Can you reuse your own softmax here, if not rewrite the softmax forward logic?
 
-        self.softmax = None  # TODO - Can you reuse your own softmax here, if not rewrite the softmax forward logic?
-
-        crossentropy = None  # TODO
-        sum_crossentropy_loss = None  # TODO
+        crossentropy = (-self.Y * np.log(self.softmax)) @ self.C  # TODO
+        sum_crossentropy_loss = self.N.T @ crossentropy  # TODO
         mean_crossentropy_loss = sum_crossentropy_loss / self.N
 
-        raise NotImplemented  # TODO - What should be the return value?
+        return mean_crossentropy_loss  # TODO - What should be the return value?
 
     def backward(self):
         """
@@ -66,5 +68,7 @@ class CrossEntropyLoss:
 
         Read the writeup (Hint: Cross-Entropy Loss Section) for implementation details for below code snippet.
         """
-        dLdA = None  # TODO
-        raise NotImplemented  # TODO - What should be the return value?
+        A_shifted = self.A - np.max(self.A, axis = 1, keepdims=True)
+        softmax_val = np.exp(A_shifted)/np.sum(np.exp(A_shifted), axis=1, keepdims=True)
+        dLdA = (softmax_val - self.Y) / self.N # TODO
+        return dLdA  # TODO - What should be the return value?
