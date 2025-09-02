@@ -29,7 +29,7 @@ class MSELoss:
 
         Read the writeup (Hint: MSE Loss Section) for implementation details for below code snippet.
         """
-        dLdA = (self.A - self.Y)/ (self.N * self.C)
+        dLdA = 2*(self.A - self.Y)/ (self.N * self.C)
         return dLdA  # TODO - What should be the return value?
 
 
@@ -54,9 +54,9 @@ class CrossEntropyLoss:
         Ones_N = np.ones((self.N, 1)) # TODO
         A_shifted = self.A - np.max(self.A, axis = 1, keepdims=True)
         self.softmax = np.exp(A_shifted)/np.sum(np.exp(A_shifted), axis=1, keepdims=True)   # TODO - Can you reuse your own softmax here, if not rewrite the softmax forward logic?
-
-        crossentropy = (-self.Y * np.log(self.softmax)) @ self.C  # TODO
-        sum_crossentropy_loss = self.N.T @ crossentropy  # TODO
+        
+        crossentropy = (-self.Y * np.log(self.softmax)) @ Ones_C  # TODO
+        sum_crossentropy_loss = Ones_N.T @ crossentropy  # TODO
         mean_crossentropy_loss = sum_crossentropy_loss / self.N
 
         return mean_crossentropy_loss  # TODO - What should be the return value?
