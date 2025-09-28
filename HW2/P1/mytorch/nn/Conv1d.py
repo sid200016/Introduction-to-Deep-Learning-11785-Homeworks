@@ -34,10 +34,16 @@ class Conv1d_stride1():
             Z (np.array): (batch_size, out_channels, output_size)
         """
         self.A = A
+        Z = np.zeros((len(A), self.out_channels, A.shape[2] - self.kernel_size + 1))
+        print(Z.shape)
+        for i in range(len(A)):
+            for out_c in range(self.out_channels): 
+                for j in range(Z.shape[2]): 
+                    Z[i, out_c, j] = np.sum(A[i, :, j:j+self.kernel_size] *self.W[out_c, :, :]) + self.b[out_c]
+            
+        
 
-        Z = None  # TODO
-
-        return NotImplemented
+        return Z
 
     def backward(self, dLdZ):
         """
@@ -47,7 +53,10 @@ class Conv1d_stride1():
             dLdA (np.array): (batch_size, in_channels, input_size)
         """
         self.dLdW = None  # TODO
-        self.dLdb = None  # TODO
+        self.dLdb = np.zeros(dLdZ.shape[1])# TODO
+        for batch in range(dLdZ.shape[0]):
+            for oc in range(dLdZ.shape[1]):
+                self.dLdb[oc] = np.sum(dLdZ[batch, oc, :])
         dLdA = None  # TODO
 
         return NotImplemented

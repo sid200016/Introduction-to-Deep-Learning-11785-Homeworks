@@ -48,10 +48,10 @@ upsample_1d = Upsample1d(upsampling_factor)
 # Perform forward and backward pass
 forward_res = upsample_1d.forward(x)
 
-# print("Forward shape: ", forward_res.shape)
-# print("Forward result: ", forward_res)
+print("Forward shape: ", forward_res.shape)
+print("Forward result: ", forward_res)
 
 backward_res = upsample_1d.backward(forward_res)
 
-# print("Backward shape: ", backward_res.shape)
-# print("Backward result: ", backward_res)
+print("Backward shape: ", backward_res.shape)
+print("Backward result: ", backward_res)
