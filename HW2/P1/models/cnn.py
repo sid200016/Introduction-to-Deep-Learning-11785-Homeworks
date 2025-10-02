@@ -61,11 +61,21 @@ class CNN(object):
         # self.flatten              (Flatten)     = Flatten()
         # self.linear_layer         (Linear)      = Linear(???)
         # <---------------------
-
-        self.convolutional_layers = None
-        self.flatten = None
-        self.linear_layer = None
-
+        # in_channels, out_channels, kernel_size, stride, padding = 0, weight_init_fn=None, bias_init_fn=None
+        print("lin", num_linear_neurons)
+        self.convolutional_layers = [Conv1d(num_input_channels, num_channels[0], kernel_sizes[0], strides[0],
+                                            weight_init_fn=conv_weight_init_fn, bias_init_fn=bias_init_fn), 
+                                    Conv1d(num_channels[0], num_channels[1],  kernel_sizes[1], strides[1],
+                                            weight_init_fn=conv_weight_init_fn, bias_init_fn=bias_init_fn),
+                                    Conv1d(num_channels[1], num_channels[2],  kernel_sizes[2], strides[2],
+                                            weight_init_fn=conv_weight_init_fn, bias_init_fn=bias_init_fn),
+                                    ]
+        self.flatten = Flatten()
+        
+        out_width1 = (input_width - kernel_sizes[0]) // strides[0] + 1
+        out_width2 = (out_width1 - kernel_sizes[1]) // strides[1] + 1
+        out_width3 = (out_width2 - kernel_sizes[2]) // strides[2] + 1
+        self.linear_layer = Linear(num_channels[2]*out_width3, num_linear_neurons)
     def forward(self, A):
         """
         Argument:
@@ -76,8 +86,13 @@ class CNN(object):
         # Your code goes here -->
         # Iterate through each layer
         # <---------------------
-
+        for i in range(0, len(self.convolutional_layers)):
+            print("Flattened shape:", A.shape, "Linear input dim:")
+            A = self.convolutional_layers[i].forward(A)
+            A = self.activations[i].forward(A)
         # Save output (necessary for error and loss)
+        A = self.flatten.forward(A)
+        A = self.linear_layer.forward(A)
         self.Z = A
 
         return self.Z
@@ -92,7 +107,11 @@ class CNN(object):
         m, _ = labels.shape
         self.loss = self.criterion.forward(self.Z, labels).sum()
         grad = self.criterion.backward()
-
+        grad = self.linear_layer.backward(grad)
+        grad = self.flatten.backward(grad)
+        for i in range(len(self.convolutional_layers)-1, -1, -1):
+            grad = self.activations[i].backward(grad)
+            grad = self.convolutional_layers[i].backward(grad)          
         # Your code goes here -->
         # Iterate through each layer in reverse order
         # <---------------------

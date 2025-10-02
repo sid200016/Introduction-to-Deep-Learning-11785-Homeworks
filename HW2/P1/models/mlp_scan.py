@@ -6,6 +6,9 @@ from Conv1d import *
 from linear import *
 from activation import *
 from loss import *
+# import mytorch.nn.linear as linear
+# import mytorch.nn.activation as activation
+# import mytorch.nn.loss as loss
 import numpy as np
 import os
 import sys
@@ -21,10 +24,13 @@ class CNN_SimpleScanningMLP():
         # self.conv3 = ???
         # ...
         # <---------------------
-        self.conv1 = None
-        self.conv2 = None
-        self.conv3 = None
-        self.layers = [] # TODO: Add the layers in the correct order
+        
+        self.conv1 = Conv1d(24, 8, 8, 4)
+        self.act1 = ReLU()
+        self.conv2 =  Conv1d(8, 16, 1, 1)
+        self.act2 = ReLU()
+        self.conv3 =  Conv1d(16, 4, 1,1)
+        self.layers = [self.conv1, self.act1, self.conv2, self.act2, self.conv3, Flatten() ] # TODO: Add the layers in the correct order
 
     def init_weights(self, weights):
         """
@@ -42,10 +48,13 @@ class CNN_SimpleScanningMLP():
         #   1 : Transpose the layer's weight matrix
         #   2 : Reshape the weight into (out_channels, kernel_size, in_channels)
         #   3 : Transpose weight back into (out_channels, in_channels, kernel_size)
-
-        self.conv1.conv1d_stride1.W = None
-        self.conv2.conv1d_stride1.W = None
-        self.conv3.conv1d_stride1.W = None
+        w1_t, w2_t, w3_t = w1.T, w2.T, w3.T
+        w1_r = w1_t.reshape(self.conv1.conv1d_stride1.out_channels, self.conv1.conv1d_stride1.kernel_size, self.conv1.conv1d_stride1.in_channels)
+        w2_r = w2_t.reshape(self.conv2.conv1d_stride1.out_channels, self.conv2.conv1d_stride1.kernel_size, self.conv2.conv1d_stride1.in_channels)
+        w3_r = w3_t.reshape(self.conv3.conv1d_stride1.out_channels, self.conv3.conv1d_stride1.kernel_size, self.conv3.conv1d_stride1.in_channels)
+        self.conv1.conv1d_stride1.W = w1_r.transpose(0, 2, 1)
+        self.conv2.conv1d_stride1.W = w2_r.transpose(0, 2, 1)
+        self.conv3.conv1d_stride1.W = w3_r.transpose(0, 2, 1)
 
     def forward(self, A):
         """
@@ -58,6 +67,7 @@ class CNN_SimpleScanningMLP():
         """
         Z = A
         for layer in self.layers:
+           
             Z = layer.forward(Z)
         return Z
 
@@ -83,10 +93,10 @@ class CNN_DistributedScanningMLP():
         # self.conv3 = ???
         # ...
         # <---------------------
-        self.conv1 = None
-        self.conv2 = None
-        self.conv3 = None
-        self.layers = [] # TODO: Add the layers in the correct order
+        self.conv1 = Conv1d(24, 2, 2, 2) #in, out, kernel, stride
+        self.conv2 = Conv1d(2, 8, 2, 2)
+        self.conv3 = Conv1d(8, 4, 2, 1)
+        self.layers = [self.conv1, ReLU(), self.conv2, ReLU(), self.conv3, Flatten()] # TODO: Add the layers in the correct order
 
     def __call__(self, A):
         # Do not modify this method
@@ -110,11 +120,25 @@ class CNN_DistributedScanningMLP():
         #   3 : Transpose weight back into (out_channels, in_channels, kernel_size)
         #   4 : Slice the weight matrix and reduce to only the shared weights
         #   (hint: be careful, steps 1-3 are similar, but not exactly like in the simple scanning MLP)
-        
-        self.conv1.conv1d_stride1.W = None
-        self.conv2.conv1d_stride1.W = None
-        self.conv3.conv1d_stride1.W = None
+        # w1 = w1[:len(w1)//4, :2]
+        w1 = w1[:self.conv1.conv1d_stride1.in_channels * self.conv1.conv1d_stride1.kernel_size, :self.conv1.conv1d_stride1.out_channels]
+        w1_t = w1.T
+        w1_r = w1_t.reshape(self.conv1.conv1d_stride1.out_channels, self.conv1.conv1d_stride1.kernel_size, self.conv1.conv1d_stride1.in_channels)
+        w1_t2  = w1_r.transpose(0, 2, 1)
 
+        w2 = w2[:self.conv2.conv1d_stride1.in_channels * self.conv2.conv1d_stride1.kernel_size, :self.conv2.conv1d_stride1.out_channels]
+        w2_t = w2.T
+        w2_r = w2_t.reshape(self.conv2.conv1d_stride1.out_channels, self.conv2.conv1d_stride1.kernel_size, self.conv2.conv1d_stride1.in_channels)
+        w2_t2  = w2_r.transpose(0, 2, 1)
+
+        w3 = w3[:self.conv3.conv1d_stride1.in_channels * self.conv3.conv1d_stride1.kernel_size, :self.conv3.conv1d_stride1.out_channels]
+        w3_t = w3.T
+        w3_r = w3_t.reshape(self.conv3.conv1d_stride1.out_channels, self.conv3.conv1d_stride1.kernel_size, self.conv3.conv1d_stride1.in_channels)
+        w3_t2  = w3_r.transpose(0, 2, 1)
+
+        self.conv1.conv1d_stride1.W = w1_t2[:, :, :self.conv1.conv1d_stride1.kernel_size]
+        self.conv2.conv1d_stride1.W = w2_t2[:, :, :self.conv2.conv1d_stride1.kernel_size]
+        self.conv3.conv1d_stride1.W = w3_t2[:, :, :self.conv3.conv1d_stride1.kernel_size]
     def forward(self, A):
         """
         Do not modify this method

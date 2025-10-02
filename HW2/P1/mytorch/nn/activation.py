@@ -37,6 +37,7 @@ class Sigmoid:
     Read the writeup (Hint: Sigmoid Section) for further details on Sigmoid forward and backward expressions.
     """
     def forward(self, Z):
+        
         self.A  = 1/(1+np.exp(-Z))
         return self.A
     def backward(self, dLdA):
@@ -55,7 +56,8 @@ class Tanh:
     Read the writeup (Hint: Tanh Section) for further details on Tanh forward and backward expressions.
     """
     def forward(self, Z):
-        self.A = (np.exp(Z) - np.exp(-Z)) / (np.exp(Z) + np.exp(-Z))
+        # self.A = (np.exp(Z) - np.exp(-Z)) / (np.exp(Z) + np.exp(-Z))
+        self.A = np.tanh(Z)
         return self.A
     def backward(self, dLdA):
         dAdZ = 1 - np.square(self.A)

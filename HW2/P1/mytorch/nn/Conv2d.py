@@ -35,10 +35,14 @@ class Conv2d_stride1():
             Z (np.array): (batch_size, out_channels, output_height, output_width)
         """
         self.A = A
-
-        Z = None  # TODO
-
-        return NotImplemented
+        Z = np.zeros((len(A), self.out_channels, A.shape[2] - self.kernel_size + 1, A.shape[3] - self.kernel_size + 1))
+        for i in range(len(A)):
+            for out_c in range(self.out_channels): 
+                for j in range(Z.shape[2]): 
+                    for k in range(Z.shape[3]):
+                        Z[i, out_c, j, k] = np.sum(A[i, :, j:j+self.kernel_size, k:k+self.kernel_size] *self.W[out_c, :, :, :]) + self.b[out_c]
+        self.Z = Z
+        return Z
 
     def backward(self, dLdZ):
         """
@@ -47,11 +51,30 @@ class Conv2d_stride1():
         Return:
             dLdA (np.array): (batch_size, in_channels, input_height, input_width)
         """
-        self.dLdW = None  # TODO
-        self.dLdb = None  # TODO
-        dLdA = None  # TODO
-
-        return NotImplemented
+        self.dLdW = np.zeros((self.out_channels, self.in_channels, self.kernel_size, self.kernel_size))  # TODO
+        self.dLdb = np.zeros((self.out_channels, ))  # TODO
+        dLdA = np.zeros((self.A.shape[0], self.in_channels, self.A.shape[2], self.A.shape[3]))  # TODO
+        #dLdB
+        for batch in range(dLdZ.shape[0]):
+            for oc in range(self.out_channels):
+                self.dLdb[oc] += np.sum(dLdZ[batch, oc, :, :])
+        #dLdW
+        for batch in range(dLdZ.shape[0]):
+            for oc in range(self.out_channels):
+                for ic in range(self.in_channels):
+                    for i in range(self.kernel_size):
+                        for j in range(self.kernel_size):
+                            self.dLdW[oc, ic, i, j] += np.sum(self.A[batch, ic, i:i+dLdZ.shape[2], j:j+dLdZ.shape[3]] * dLdZ[batch, oc, :, :])
+        #dLdA
+        dLdZ_padded = np.pad(dLdZ, ((0, 0), (0, 0), (self.kernel_size - 1, self.kernel_size - 1), (self.kernel_size - 1, self.kernel_size - 1)), mode='constant')
+        weight_flipped = np.flip(self.W, axis = (2, 3))
+        for i in range(len(self.A)):
+            for in_c in range(self.in_channels):
+                for j in range(self.A.shape[2]):
+                    for k in range(self.A.shape[3]):
+                        window = dLdZ_padded[i, :, j:j+self.kernel_size, k: k+self.kernel_size]
+                        dLdA[i, in_c, j, k] += np.sum(window *weight_flipped[:, in_c, :, :])
+        return dLdA
 
 
 class Conv2d():
@@ -61,8 +84,8 @@ class Conv2d():
         self.pad = padding
 
         # Initialize Conv2d() and Downsample2d() isntance
-        self.conv2d_stride1 = None  # TODO
-        self.downsample2d = None  # TODO
+        self.conv2d_stride1 = Conv2d_stride1(in_channels, out_channels, kernel_size, weight_init_fn, bias_init_fn)  # TODO
+        self.downsample2d = Downsample2d(stride)  # TODO
 
     def forward(self, A):
         """
@@ -73,14 +96,14 @@ class Conv2d():
         """
         # Pad the input appropriately using np.pad() function
         # TODO
-
+        A_padded = np.pad(A, ((0, 0), (0, 0), (self.pad, self.pad), (self.pad, self.pad)), mode='constant')
         # Call Conv2d_stride1
         # TODO
-
+        Z = self.conv2d_stride1.forward(A_padded)
         # downsample
-        Z = None  # TODO
+        Z_down = self.downsample2d.forward(Z)  # TODO
 
-        return NotImplemented
+        return Z_down
 
     def backward(self, dLdZ):
         """
@@ -91,11 +114,11 @@ class Conv2d():
         """
         # Call downsample1d backward
         # TODO
-
+        dLdZ_upsampled = self.downsample2d.backward(dLdZ)  # TODO
         # Call Conv1d_stride1 backward
-        dLdA = None  # TODO
+        dLdA = self.conv2d_stride1.backward(dLdZ_upsampled)  # TODO
 
         # Unpad the gradient
         # TODO
-
-        return NotImplemented
+        dLdA_unpadded = dLdA[:, :, self.pad:dLdA.shape[2]-self.pad, self.pad:dLdA.shape[3] - self.pad]
+        return dLdA_unpadded
