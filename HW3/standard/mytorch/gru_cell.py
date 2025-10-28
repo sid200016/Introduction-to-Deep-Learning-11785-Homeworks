@@ -86,11 +86,14 @@ class GRUCell(object):
         """
         self.x = x
         self.hidden = h_prev_t
-
+        self.anh = self.Wnh @ h_prev_t + self.bnh
         # Add your code here.
         # Define your variables based on the writeup using the corresponding
         # names below.
-
+        self.r = self.r_act.forward(self.Wrx@x + self.brx + self.Wrh@h_prev_t + self.brh    )
+        self.z = self.z_act.forward(self.Wzx@x + self.bzx + self.Wzh@h_prev_t + self.bzh    )
+        self.n = self.h_act.forward(self.Wnx@x + self.bnx + self.r*(self.Wnh@h_prev_t + self.bnh))
+        h_t = (1-self.z)*self.n + self.z*h_prev_t
         assert self.x.shape == (self.d,)
         assert self.hidden.shape == (self.h,)
 
@@ -99,8 +102,8 @@ class GRUCell(object):
         assert self.n.shape == (self.h,)
         assert h_t.shape == (self.h,)  # h_t is the final output of you GRU cell.
 
-        # return h_t
-        raise NotImplementedError
+        return h_t
+        
 
     def backward(self, delta):
         """GRU cell backward.
@@ -134,9 +137,31 @@ class GRUCell(object):
         # ADDITIONAL TIP:
         # Make sure the shapes of the calculated dWs and dbs  match the
         # initalized shapes accordingly
+        x_val = self.x.reshape(self.d, 1)
+        hidden_val  = self.hidden.reshape(self.h, 1)
+        dLdz = self.z_act.backward(delta * (self.hidden - self.n))
+        dLdn = self.h_act.backward(delta * (1 - self.z))
+        dLdr = self.r_act.backward(dLdn * self.anh)
 
+        self.dWzx += np.outer(dLdz,  x_val)
+        self.dWzh += np.outer(dLdz,  hidden_val)
+        self.dbzx += dLdz
+        self.dbzh += dLdz
+        #dLdr = (self.Wnh.T @ (dLdn * (1 - self.n ** 2))) * hidden_val
+        
+        self.dWnx += np.outer(dLdn,  x_val)
+        self.dWnh += np.outer(dLdn * self.r,  hidden_val)
+        self.dbnx += dLdn
+        self.dbnh += dLdn * self.r
+
+        self.dWrx += np.outer(dLdr,  x_val)
+        self.dWrh += np.outer(dLdr,  hidden_val)
+        self.dbrx += dLdr
+        self.dbrh += dLdr
+
+        dx = self.Wnx.T @ (dLdn) + self.Wzx.T @ (dLdz) + self.Wrx.T @ (dLdr)
+        dh_prev_t = delta * self.z + self.Wzh.T@dLdz+ self.Wrh.T@dLdr+ self.Wnh.T@(dLdn * self.r)
         assert dx.shape == (self.d,)
         assert dh_prev_t.shape == (self.h,)
-
-        # return dx, dh_prev_t
-        raise NotImplementedError
+        return dx, dh_prev_t
+ 

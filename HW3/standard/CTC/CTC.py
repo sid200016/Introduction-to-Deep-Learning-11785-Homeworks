@@ -41,6 +41,10 @@ class CTC(object):
             extended_symbols.append(self.BLANK)
 
         N = len(extended_symbols)
+        skip_connect = np.zeros((N,))
+        for i in range(2, N):
+            if extended_symbols[i] != extended_symbols[i-2] and extended_symbols[i] != self.BLANK:
+                skip_connect[i] = 1
         
         # -------------------------------------------->
         # TODO
@@ -53,12 +57,12 @@ class CTC(object):
         # Consider the conditions under which a 'skip' is allowed in the extended symbol sequence.
         # <---------------------------------------------
 
-        # return extended_symbols, skip_connect
-        raise NotImplementedError
+        return extended_symbols, skip_connect
+     
 
     def get_forward_probs(self, logits, extended_symbols, skip_connect):
         """Compute forward probabilities.
-
+        
         Input
         -----
         logits: (np.array, dim = (input_len, len(Symbols)))
@@ -79,14 +83,16 @@ class CTC(object):
                 forward probabilities
 
         """
-
+        qextSymbols = {s:i for i, s in enumerate(extended_symbols)}
         S, T = len(extended_symbols), len(logits)
         alpha = np.zeros(shape=(T, S))
-
+        
         # -------------------------------------------->
         # TODO: Initialize the starting probabilities for the first time step.
 		# TODO: Intialize alpha[0][0]
 		# TODO: Intialize alpha[0][1]
+        alpha[0][0] = logits[0, extended_symbols[0]]
+        alpha[0][1] = logits[0, extended_symbols[1]]
         # This involves setting the initial values for the first two extended symbols.
         #
 		# TODO: Compute all values for alpha[t][sym] where 1 <= t < T and 1 <= sym < S (assuming zero-indexing)
@@ -98,9 +104,19 @@ class CTC(object):
         # from a symbol two positions prior in the extended sequence, under specific CTC rules.
         # Ensure proper indexing and multiplication with the relevant logit for the current state.
         # <---------------------------------------------
+        for t in range(1, T):
+            for s in range(S):
+                
+                alpha[t][s] = alpha[t-1][s]
+                if s >= 1:  
+                    alpha[t][s] += alpha[t-1][s-1]
+                if s >= 2 and skip_connect[s] == 1:
+                    alpha[t][s] += alpha[t-1][s-2]
+                
+                alpha[t][s] *= logits[t, extended_symbols[s]]
+        
+        return alpha
 
-        # return alpha
-        raise NotImplementedError
 
     def get_backward_probs(self, logits, extended_symbols, skip_connect):
         """Compute backward probabilities.
@@ -125,14 +141,26 @@ class CTC(object):
                 backward probabilities
 
         """
+        qextSymbols = {s:i for i, s in enumerate(extended_symbols)}
         S, T = len(extended_symbols), len(logits)
         beta = np.zeros(shape=(T, S))
-
+        
         # -------------------------------------------->
         # TODO: Establish the terminating probabilities at the last time step.
         # This typically involves setting initial `beta` values for the last two extended symbols.
         #
+        beta[T-1][S-1] = 1.0 #logits[T-1, extended_symbols[S-1]]
+        beta[T-1][S-2] = 1.0 #logits[T-1, extended_symbols[S-2]]
+
         # TODO: Proceed with backward iterative computation for `beta` values through time.
+        for t in range(T-2, -1, -1):
+            for s in range(S-1, -1, -1):
+                beta[t][s] = beta[t+1][s] * logits[t+1, extended_symbols[s]]
+                if s < S-1:
+                    beta[t][s] += beta[t+1][s+1] * logits[t+1, extended_symbols[s+1]]
+                if s < S - 2 and skip_connect[s+2] == 1:
+                    beta[t][s] += beta[t+1][s+2] * logits[t+1, extended_symbols[s+2]]
+        return beta
         # For each `beta[t][sym]`, determine the contributions from future states at time `t+1`.
         # These contributions usually involve the same symbol at `t+1` and the next symbol at `t+1`.
         # Integrate the `skipConnect` logic to account for transitions from states
@@ -146,7 +174,7 @@ class CTC(object):
         # <--------------------------------------------
 
         # return beta
-        raise NotImplementedError
+        
 
     def get_posterior_probs(self, alpha, beta):
         """Compute posterior probabilities.
@@ -169,11 +197,21 @@ class CTC(object):
         [T, S] = alpha.shape
         gamma = np.zeros(shape=(T, S))
         sumgamma = np.zeros((T,))
+        
 
         # -------------------------------------------->
         # TODO: Calculate the unnormalized joint probability for each (time, symbol) pair.
         # This involves combining the `alpha` and `beta` probabilities at each point.
         #
+        for t in range(T):
+            sumgamma[t] = np.sum(alpha[t, :] * beta[t, :]) + 1E-6
+            for s in range(S):
+                gamma[t][s] = alpha[t][s] * beta[t][s] / sumgamma[t]
+                
+            
+        # for t in range(T):
+        #     for s in range(S):
+        #         gamma[t][s] /= (sumgamma[t] + 1e-12)
         # TODO: Normalize these joint probabilities at each time step.
         # For each time step, sum all unnormalized joint probabilities across all extended symbols.
         # Then, divide each individual unnormalized joint probability by this sum to ensure
@@ -181,8 +219,8 @@ class CTC(object):
         # Remember to add a small numerical stability constant (epsilon) to the denominator.
         # <---------------------------------------------
 
-        # return gamma
-        raise NotImplementedError
+        return gamma
+        # raise NotImplementedError
 
 
 class CTCLoss(object):
@@ -269,12 +307,20 @@ class CTCLoss(object):
             # -------------------------------------------->
             # TODO
             # <---------------------------------------------
-            pass
+            target_trunc = self.target[batch_itr][0:self.target_lengths[batch_itr]]
+            logits_trunc = self.logits[0:self.input_lengths[batch_itr], batch_itr, :]
+            extended_target, skip_connect = self.ctc.extend_target_with_blank(target_trunc)
+            alpha = self.ctc.get_forward_probs(logits_trunc, extended_target, skip_connect)
+            beta = self.ctc.get_backward_probs(logits_trunc, extended_target, skip_connect)
+            gamma = self.ctc.get_posterior_probs(alpha, beta)
+            self.gammas.append(gamma)
+            total_loss[batch_itr] = -np.sum(gamma * np.log(logits_trunc[:, extended_target] + 1E-8))
+          
 
         total_loss = np.sum(total_loss) / B
 
-        # return total_loss
-        raise NotImplementedError
+        return total_loss
+        # raise NotImplementedError
 
     def backward(self):
         """
@@ -317,16 +363,19 @@ class CTCLoss(object):
             #     Truncate the logits to input length
             logit = self.logits[:self.input_lengths[batch_itr], batch_itr]
             #     Extend target sequence with blank
-            extended, _ = self.ctc.extend_target_with_blank(target)
+            extended, skip = self.ctc.extend_target_with_blank(target)
             #     Compute derivative of divergence and store them in dY
-            
+            alpha = self.ctc.get_forward_probs(logit, extended, skip)
+            beta = self.ctc.get_backward_probs(logit, extended, skip)
+            gamma = self.ctc.get_posterior_probs(alpha, beta)
             # <---------------------------------------------
-            
+            for t in range(self.input_lengths[batch_itr]):
+                for s in range(len(extended)):
+                    dY[t, batch_itr, extended[s]] -= gamma[t][s] / (logit[t, extended[s]] + 1E-8)
 
-            # -------------------------------------------->
-            # TODO
+        
             # <---------------------------------------------
-            pass
+          
 
-        # return dY
-        raise NotImplementedError
+        return dY
+
