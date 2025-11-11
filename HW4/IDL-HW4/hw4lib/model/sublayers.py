@@ -43,14 +43,14 @@ class SelfAttentionLayer(nn.Module):
         # TODO: Implement __init__
         
         # TODO: Initialize the multi-head attention mechanism (use nn.MultiheadAttention)
-        self.mha = NotImplementedError
+        self.mha = nn.MultiheadAttention(embed_dim=d_model, num_heads=num_heads, dropout=dropout, batch_first=True)
         
         # TODO: Initialize the normalization layer (use nn.LayerNorm)
-        self.norm = NotImplementedError
+        self.norm = nn.LayerNorm(d_model)
         
         # TODO: Initialize the dropout layer
-        self.dropout = NotImplementedError
-        raise NotImplementedError # Remove once implemented
+        self.dropout = nn.Dropout(dropout)
+        
 
 
     def forward(self, x: torch.Tensor, key_padding_mask: Optional[torch.Tensor] = None, attn_mask: Optional[torch.Tensor] = None) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -70,12 +70,19 @@ class SelfAttentionLayer(nn.Module):
         # TODO: Self-attention
         # Be sure to use the correct arguments for the multi-head attention layer
         # Set need_weights to True and average_attn_weights to True so we can get the attention weights 
-        x, mha_attn_weights = NotImplementedError, NotImplementedError
+        if key_padding_mask is not None:
+            key_padding_mask = key_padding_mask.to(x.device)  # (N, S), bool
+        if attn_mask is not None:
+            attn_mask = attn_mask.to(x.device) 
+        residual = x
+        x = self.norm(x)
+
+        x, mha_attn_weights = self.mha(key=x, query=x, value=x, key_padding_mask=key_padding_mask, need_weights=True, attn_mask=attn_mask, average_attn_weights=True)
         
         # NOTE: For some regularization you can apply dropout and then add residual connection
-        
+        x = residual + self.dropout(x)
         # TODO: Return the output tensor and attention weights
-        raise NotImplementedError # Remove once implemented
+        return x, mha_attn_weights # Remove once implemented
     
 ## -------------------------------------------------------------------------------------------------  
 class CrossAttentionLayer(nn.Module):
@@ -106,13 +113,13 @@ class CrossAttentionLayer(nn.Module):
         # TODO: Implement __init__
         
         # TODO: Initialize the multi-head attention mechanism (use nn.MultiheadAttention)
-        self.mha = NotImplementedError
+        self.mha = nn.MultiheadAttention(embed_dim=d_model, num_heads=num_heads, dropout=dropout, batch_first=True)
         
         # TODO: Initialize the normalization layer (use nn.LayerNorm)
-        self.norm = NotImplementedError
+        self.norm = nn.LayerNorm(d_model)
         
         # TODO: Initialize the dropout layer
-        self.dropout = NotImplementedError
+        self.dropout = nn.Dropout(dropout)
         
         raise NotImplementedError # Remove once implemented
 
@@ -134,7 +141,7 @@ class CrossAttentionLayer(nn.Module):
         # TODO: Cross-attention
         # Be sure to use the correct arguments for the multi-head attention layer
         # Set need_weights to True and average_attn_weights to True so we can get the attention weights 
-        x, mha_attn_weights = NotImplementedError, NotImplementedError
+        x, mha_attn_weights = self.mha(key=x, query=x, value=x, key_padding_mask=key_padding_mask, need_weights=True, attn_mask=attn_mask, average_attn_weights=True)
         
         # NOTE: For some regularization you can apply dropout and then add residual connection
         
@@ -175,14 +182,14 @@ class FeedForwardLayer(nn.Module):
 
         # TODO: Initialize the feed-forward network (use nn.Sequential)
         # See writeup for what layers to use
-        self.ffn = NotImplementedError
+        self.ffn = nn.Sequential(nn.Linear(d_model, d_ff), nn.GELU(), nn.Dropout(dropout), nn.Linear(d_ff, d_model))
         
         # TODO: Initialize the normalization layer
-        self.norm = NotImplementedError
+        self.norm = nn.LayerNorm(d_model)
         
         # TODO: Initialize the dropout layer
-        self.dropout = NotImplementedError
-        raise NotImplementedError # Remove once implemented
+        self.dropout = nn.Dropout(dropout)
+         # Remove once implemented
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         '''
@@ -196,9 +203,12 @@ class FeedForwardLayer(nn.Module):
         # TODO: Implement forward: Follow the figure in the writeup
 
         # NOTE: For some regularization you can apply dropout to the output of the feed-forward network before adding the residual connection
-        
-        x = NotImplementedError
+        residual = x
+        x = self.norm(x)
+        x = self.ffn(x)
+        x = self.dropout(x)
+        x = x + residual
         
         # TODO: Return the output tensor
-        raise NotImplementedError # Remove once implemented
+        return x# Remove once implemented
     

@@ -163,9 +163,26 @@ class SequenceGenerator:
             raise ValueError("Input x must be 2-dimensional (batch_size, seq_len)")
         if self.max_length < x.size(1):
             raise ValueError("max_length must be >= input sequence length")
+        scores = torch.zeros(x.shape[0], ).to(x.device)
+        finished_flags = torch.zeros(x.shape[0], dtype= torch.bool).to(x.device)
         
         # TODO: Implement greedy search
-        raise NotImplementedError # Remove once implemented
+        for t in range(self.max_length - x.shape[1]): 
+            if torch.all(finished_flags):
+                break
+            logits = self.score_fn(x)
+            logits = self._apply_repeat_penalty(logits, x, repeat_penalty)
+            logits = logits / temperature
+            log_probs = torch.log_softmax(logits, dim = -1)
+
+            next_tokens = torch.argmax(log_probs, dim = -1)
+            token_scores = log_probs.gather(1, next_tokens.unsqueeze(1)).squeeze(1)
+            scores=  torch.where(finished_flags, scores, scores + token_scores)
+            
+            x = torch.cat([x, next_tokens.unsqueeze(1)], dim = 1)
+            eos_mask = next_tokens == self.tokenizer.eos_id
+            finished_flags |= eos_mask
+        return x, scores # Remove once implemented
 
     def generate_beam(
             self,

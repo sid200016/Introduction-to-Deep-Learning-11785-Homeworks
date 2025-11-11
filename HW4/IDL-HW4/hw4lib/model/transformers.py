@@ -116,22 +116,25 @@ class DecoderOnlyTransformer(nn.Module):
         self.layer_drop_rate = layer_drop_rate
         self.num_classes     = num_classes
         self.num_layers      = num_layers
-        
+        self.d_model = d_model
+        self.d_ff = d_ff
+        self.drop=dropout
+        self.num_heads = num_heads
         # TODO: Create a ModuleList of decoder layers based on the number of layers
-        self.dec_layers     = NotImplementedError # ModuleList of decoder layers
+        # ModuleList of decoder layers
 
         # TODO: Create target embedding and other layers
-        self.target_embedding       = NotImplementedError # Target embedding
-        self.positional_encoding    = NotImplementedError # Positional encoding
-        self.final_linear           = NotImplementedError # Final linear layer
-        self.dropout                = NotImplementedError # Dropout
-        self.norm                   = NotImplementedError # Layer norm
-
+        self.target_embedding       = nn.Embedding(self.num_classes, self.d_model)    # Target embedding
+        self.positional_encoding    = PositionalEncoding(self.d_model, self.max_len) # Positional encoding
+        self.final_linear           = nn.Linear(self.d_model, self.num_classes) # Final linear layer
+        self.dropout                = nn.Dropout(self.drop) # Dropout
+        self.norm                   = nn.LayerNorm(d_model) # Layer norm
+        self.dec_layers     = nn.ModuleList([SelfAttentionDecoderLayer(self.d_model, self.num_heads, self.d_ff, self.drop) for _ in range(self.num_layers)])
         # Weight tying (extra form of regularization, read more about it)
         if weight_tying:
             self.target_embedding.weight = self.final_linear.weight
 
-        raise NotImplementedError # Remove once implemented
+        
 
     def forward(self, padded_targets: torch.Tensor, target_lengths: Optional[torch.Tensor] = None) -> Tuple[torch.Tensor, dict]:
         '''
@@ -148,21 +151,21 @@ class DecoderOnlyTransformer(nn.Module):
             raise ValueError("target_lengths must be provided during training")
         
         # TODO: Implement forward
-
         # TODO: Create padding mask for padded_targets on the same device as the input (use PadMask)
+        
+      
         pad_mask_dec = None
         if target_lengths is not None:
-            pad_mask_dec = NotImplementedError
-        
+            pad_mask_dec = PadMask(padded_targets, target_lengths).to(padded_targets.device)
         # TODO: Create causal mask to prevent attending to future tokens on the same device as the input (use CausalMask)
-        causal_mask = NotImplementedError
+        causal_mask = CausalMask(padded_targets).to(padded_targets.device)
 
         # TODO: Apply the embedding
-        x = NotImplementedError
+        x = self.target_embedding(padded_targets)
         # TODO: Apply positional encoding
-        x = NotImplementedError
+        x = self.positional_encoding(x)
         # TODO: Apply dropout 
-        x = NotImplementedError
+        x = self.dropout(x)
 
         # TODO: Pass through all decoder layers, save attention masks
         runnint_att = {}
@@ -172,18 +175,18 @@ class DecoderOnlyTransformer(nn.Module):
                 continue
             
             # TODO: Pass through decoder layer
-            x, attention = NotImplementedError, NotImplementedError
+            x, attention = self.dec_layers[i](x, pad_mask_dec, causal_mask)
             
             # TODO: Save attention weights  
             runnint_att['layer{}_dec_self'.format(i + 1)] = attention
 
         # TODO: Apply normalization
-        x = NotImplementedError
+        x = self.norm(x)
         # TODO: Linear layer (Final Projection) for next character prediction
-        seq_out = NotImplementedError
+        seq_out = self.final_linear(x)
         
         # TODO: Return the output sequence and running attention weights
-        raise NotImplementedError
+        return seq_out, runnint_att
     
     def score(self, batch_prompts: torch.Tensor) -> torch.Tensor:
         '''
