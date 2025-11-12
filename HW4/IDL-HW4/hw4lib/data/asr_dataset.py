@@ -73,7 +73,7 @@ class ASRDataset(Dataset):
                                           Should be provided for dev and test sets.
         """
         # TODO: Implement __init__
-        raise NotImplementedError # Remove once implemented
+        # Remove once implemented
     
         # Store basic configuration
         self.config    = config
@@ -83,14 +83,14 @@ class ASRDataset(Dataset):
 
         # TODO: Get tokenizer ids for special tokens (eos, sos, pad)
         # Hint: See the class members of the H4Tokenizer class
-        self.eos_token = NotImplementedError
-        self.sos_token = NotImplementedError
-        self.pad_token = NotImplementedError
+        self.eos_token = self.tokenizer.eos_id
+        self.sos_token = self.tokenizer.sos_id
+        self.pad_token = self.tokenizer.pad_id
 
         # Set up data paths 
         # TODO: Use root and partition to get the feature directory
-        self.fbank_dir   = NotImplementedError
-        
+        self.fbank_dir   = os.path.join(self.config['root'], self.partition, "feats")
+
         # TODO: Get all feature files in the feature directory in sorted order  
         self.fbank_files = NotImplementedError
         
