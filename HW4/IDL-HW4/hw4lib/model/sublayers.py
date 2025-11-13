@@ -121,7 +121,7 @@ class CrossAttentionLayer(nn.Module):
         # TODO: Initialize the dropout layer
         self.dropout = nn.Dropout(dropout)
         
-        raise NotImplementedError # Remove once implemented
+         # Remove once implemented
 
     def forward(self, x: torch.Tensor, y: torch.Tensor, key_padding_mask: Optional[torch.Tensor] = None, attn_mask: Optional[torch.Tensor] = None) -> Tuple[torch.Tensor, torch.Tensor]:
         '''
@@ -141,12 +141,18 @@ class CrossAttentionLayer(nn.Module):
         # TODO: Cross-attention
         # Be sure to use the correct arguments for the multi-head attention layer
         # Set need_weights to True and average_attn_weights to True so we can get the attention weights 
-        x, mha_attn_weights = self.mha(key=x, query=x, value=x, key_padding_mask=key_padding_mask, need_weights=True, attn_mask=attn_mask, average_attn_weights=True)
+        if key_padding_mask is not None:
+            key_padding_mask = key_padding_mask.to(x.device)  # (N, S), bool
+        if attn_mask is not None:
+            attn_mask = attn_mask.to(x.device) 
+        residual  = x
+        x = self.norm(x)
+        x, mha_attn_weights = self.mha(key=y, query=x, value=y, key_padding_mask=key_padding_mask, need_weights=True, attn_mask=attn_mask, average_attn_weights=True)
         
         # NOTE: For some regularization you can apply dropout and then add residual connection
-        
+        x = residual + self.dropout(x)
         # TODO: Return the output tensor and attention weights
-        raise NotImplementedError # Remove once implemented
+        return x, mha_attn_weights # Remove once implemented
     
 ## -------------------------------------------------------------------------------------------------  
 class FeedForwardLayer(nn.Module):

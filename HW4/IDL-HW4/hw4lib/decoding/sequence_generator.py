@@ -214,7 +214,63 @@ class SequenceGenerator:
             raise ValueError("max_length must be >= input sequence length")
         
         # TODO: Implement beam search
-        raise NotImplementedError # Remove once implemented
+        batch_size = x.size(0)
+        eos_id = self.tokenizer.eos_id
+        vocab_size = self.tokenizer.vocab_size
+
+        all_sequences = []
+        all_scores = []
+
+        for b in range(batch_size):
+            y_probs = torch.softmax(self.score_fn(x[b:b+1]), dim=-1).squeeze(0)
+            # y_probs = y_probs.transpose(0, 1)
+
+            blank_path_score = {"": y_probs[0].item()}
+            path_score = {self.tokenizer.decode([i]): y_probs[i].item()
+                      for i in range(1, vocab_size)}
+            
+            T = y_probs.size(1)
+            for t in range(1, T):
+            
+                all_paths = list(blank_path_score.items()) + list(path_score.items())
+                all_paths.sort(key=lambda x: x[1], reverse=True)
+                cutoff = all_paths[min(beam_width, len(all_paths)) - 1][1]
+                pruned_blank = {p: s for p, s in blank_path_score.items() if s >= cutoff}
+                pruned_symbol = {p: s for p, s in path_score.items() if s >= cutoff}
+                new_blank = {}
+                for path, score in pruned_blank.items():
+                    new_blank[path] = score * y_probs[t].item()
+                for path, score in pruned_symbol.items():
+                    new_blank[path] = new_blank.get(path, 0.0) + score * y_probs[t].item()
+                new_path = {}
+                for path, score in {**pruned_blank, **pruned_symbol}.items():
+                    for i in range(1, vocab_size):
+                        symbol = self.tokenizer.decode([i])
+                        prob = y_probs[i].item()
+                        if len(path) > 0 and symbol == path[-1]:
+                            new_seq = path
+                        else:
+                            new_seq = path + symbol
+                        new_path[new_seq] = new_path.get(new_seq, 0.0) + score * prob
+                merged_scores = {}
+                for p, s in blank_path_score.items():
+                    merged_scores[p] = merged_scores.get(p, 0.0) + s
+                for p, s in path_score.items():
+                    merged_scores[p] = merged_scores.get(p, 0.0) + s
+
+                sorted_paths = sorted(merged_scores.items(), key=lambda x: x[1], reverse=True)[:beam_width]
+                top_sequences = [p for p, _ in sorted_paths]
+                top_scores = [s for _, s in sorted_paths]
+
+                tokenized = [torch.tensor(self.tokenizer.encode(seq), device=x.device) for seq in top_sequences]
+                max_len = max(len(t) for t in tokenized)
+                padded = torch.stack([torch.cat([t, torch.full((max_len - len(t),), eos_id, device=x.device)])
+                        for t in tokenized])
+                all_sequences.append(padded)
+                all_scores.append(torch.tensor(top_scores, device=x.device))
+            sequences = torch.stack(all_sequences)  # (B, K, L)
+            scores = torch.stack(all_scores)  
+            return sequences, scores 
 
     def generate_sample(
             self,
